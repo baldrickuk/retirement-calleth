@@ -122,7 +122,6 @@ function escapeHtml(s: string): string {
 
 export function renderEmail({ days, joke, stage, pct }: RenderInput): RenderedEmail {
   const unit = days === 1 ? "day" : "days";
-  const heroNumber = days > 0 ? String(days) : "0";
 
   let subject: string;
   if (stage.key === "theday") {
@@ -137,9 +136,12 @@ export function renderEmail({ days, joke, stage, pct }: RenderInput): RenderedEm
   const heading =
     stage.key === "theday"
       ? `TODAY'S THE DAY ${stage.emoji}`
-      : `${heroNumber} ${stage.emoji}`;
+      : `${days} ${stage.emoji}`;
   const subheading =
     stage.key === "theday" ? "Congratulations — you made it." : `${unit} to go`;
+  // The short stage labels ("day to go") read well in caps; the celebratory
+  // sentence does not, so only the label stages get the uppercase treatment.
+  const subheadingTransform = stage.key === "theday" ? "none" : "uppercase";
 
   const safeJoke = escapeHtml(joke);
 
@@ -164,7 +166,7 @@ export function renderEmail({ days, joke, stage, pct }: RenderInput): RenderedEm
         <tr>
           <td align="center" style="background:${stage.accent};background-image:${stage.gradient};padding:40px 24px;">
             <div style="font-size:64px;line-height:1;font-weight:800;color:#ffffff;">${heading}</div>
-            <div style="font-size:16px;color:#ffffff;opacity:0.9;margin-top:8px;letter-spacing:1px;text-transform:uppercase;">${subheading}</div>
+            <div style="font-size:16px;color:#ffffff;opacity:0.9;margin-top:8px;letter-spacing:1px;text-transform:${subheadingTransform};">${subheading}</div>
           </td>
         </tr>
         <tr>

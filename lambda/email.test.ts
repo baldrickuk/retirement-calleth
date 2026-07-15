@@ -80,6 +80,9 @@ describe("renderEmail", () => {
     expect(out.subject).toBe("🥳 TODAY'S THE DAY!");
     expect(out.html).toContain("TODAY'S THE DAY");
     expect(out.text).toContain("TODAY'S THE DAY");
+    // The celebratory sentence keeps its natural case (not shouted in caps).
+    expect(out.html).toContain("Congratulations — you made it.");
+    expect(out.html).toContain("text-transform:none;");
   });
 
   it("escapes HTML in the joke", () => {
