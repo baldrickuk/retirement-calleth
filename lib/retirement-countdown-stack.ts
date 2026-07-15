@@ -52,21 +52,39 @@ export class RetirementCountdownStack extends cdk.Stack {
 
     jokeHistoryTable.grantReadWriteData(countdownFn);
 
+    // A cross-region inference profile id is prefixed with its geo scope
+    // (e.g. "eu."/"us."/"apac."/"global."). Invoking through a profile requires
+    // InvokeModel on the profile ARN AND on the underlying foundation model in
+    // every region the profile can route to, so wildcard the region and strip
+    // the prefix to get the base foundation-model id.
+    const isInferenceProfile = /^(eu|us|apac|global)\./.test(props.bedrockModelId);
+    const bedrockResources = isInferenceProfile
+      ? [
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${props.bedrockModelId}`,
+          `arn:aws:bedrock:*::foundation-model/${props.bedrockModelId.replace(/^(eu|us|apac|global)\./, "")}`,
+        ]
+      : [`arn:aws:bedrock:${this.region}::foundation-model/${props.bedrockModelId}`];
+
     countdownFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel"],
-        resources: [
-          `arn:aws:bedrock:${this.region}::foundation-model/${props.bedrockModelId}`,
-        ],
+        resources: bedrockResources,
       })
+    );
+
+    // Grant SendEmail on both the sender and recipient identities. While the
+    // account is in the SES sandbox, SES authorizes SendEmail against the
+    // recipient identity too, not just the sender — so both must be listed.
+    const sesIdentities = Array.from(
+      new Set([props.senderEmail, props.recipientEmail])
+    ).map(
+      (email) => `arn:aws:ses:${this.region}:${this.account}:identity/${email}`
     );
 
     countdownFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["ses:SendEmail", "ses:SendRawEmail"],
-        resources: [
-          `arn:aws:ses:${this.region}:${this.account}:identity/${props.senderEmail}`,
-        ],
+        resources: sesIdentities,
       })
     );
 

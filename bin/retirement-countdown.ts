@@ -24,5 +24,6 @@ new RetirementCountdownStack(app, "RetirementCountdownStack", {
   retirementDate: requireContext("retirementDate"),
   senderEmail: requireContext("senderEmail"),
   recipientEmail: requireContext("recipientEmail"),
-  bedrockModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+  // eu. inference-profile ID — required for on-demand invocation of this model in eu-west-2
+  bedrockModelId: "eu.anthropic.claude-sonnet-4-6",
 });
