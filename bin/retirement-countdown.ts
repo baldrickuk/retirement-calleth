@@ -15,6 +15,10 @@ function requireContext(key: string): string {
   return value;
 }
 
+const countdownStartDate =
+  app.node.tryGetContext("countdownStartDate") ??
+  new Date().toISOString().slice(0, 10);
+
 new RetirementCountdownStack(app, "RetirementCountdownStack", {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
@@ -24,6 +28,7 @@ new RetirementCountdownStack(app, "RetirementCountdownStack", {
   retirementDate: requireContext("retirementDate"),
   senderEmail: requireContext("senderEmail"),
   recipientEmail: requireContext("recipientEmail"),
+  countdownStartDate,
   // eu. inference-profile ID — required for on-demand invocation of this model in eu-west-2
   bedrockModelId: "eu.anthropic.claude-sonnet-4-6",
 });
