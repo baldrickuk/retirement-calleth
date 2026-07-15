@@ -47,10 +47,7 @@ lambda/handler.ts                  Lambda handler: countdown, Bedrock joke, SES 
 
 ## Before deploying
 
-1. **Edit `bin/retirement-countdown.ts`** — set `retirementDate`,
-   `senderEmail`, `recipientEmail`, and (optionally) `bedrockModelId`.
-
-2. **Verify SES identities.** In a new/sandboxed SES account, both the
+1. **Verify SES identities.** In a new/sandboxed SES account, both the
    sender and recipient addresses must be verified:
    ```bash
    aws ses verify-email-identity --email-address your-verified-sender@example.com
@@ -59,17 +56,34 @@ lambda/handler.ts                  Lambda handler: countdown, Bedrock joke, SES 
    Check your inbox for the verification links. (Request SES production
    access if you want to skip recipient verification later.)
 
-3. **Enable Bedrock model access.** In the AWS Console → Bedrock → Model
-   access, request access to the Claude model you set as `bedrockModelId`.
+2. **Enable Bedrock model access.** In the AWS Console → Bedrock → Model
+   access, request access to the Claude model set as `bedrockModelId` in
+   `bin/retirement-countdown.ts` (hardcoded, since it's not personal data).
    This is a one-time, per-account/region approval.
 
 ## Deploy
 
+`retirementDate`, `senderEmail`, and `recipientEmail` are **not**
+hardcoded — they're personal data, so they must be passed as CDK context
+on every `deploy`/`synth`/`destroy` invocation instead of being committed
+to source:
+
 ```bash
 npm install
-npx cdk bootstrap   # first time only, per account/region
-npx cdk deploy
+npx cdk bootstrap \
+  -c retirementDate=2028-04-01 \
+  -c senderEmail=your-verified-sender@example.com \
+  -c recipientEmail=your-recipient@example.com   # first time only, per account/region
+
+npx cdk deploy \
+  -c retirementDate=2028-04-01 \
+  -c senderEmail=your-verified-sender@example.com \
+  -c recipientEmail=your-recipient@example.com
 ```
+
+Omitting any of the three fails fast with a clear error before anything is
+deployed. To avoid retyping them, put them in `cdk.context.json` (gitignored)
+or export them once as shell variables and reuse `-c retirementDate=$RETIREMENT_DATE ...`.
 
 ## Test it immediately
 

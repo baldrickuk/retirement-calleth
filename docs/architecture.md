@@ -86,16 +86,24 @@ regenerable.
 
 ## Configuration
 
-Stack props (`RetirementCountdownStackProps`) are set directly in
+Stack props (`RetirementCountdownStackProps`) are resolved in
 `bin/retirement-countdown.ts` at synth time and passed to the Lambda as
 plain (unencrypted-beyond-default) environment variables:
 
 - `RETIREMENT_DATE`, `SENDER_EMAIL`, `RECIPIENT_EMAIL`, `BEDROCK_MODEL_ID`,
   `TABLE_NAME`.
 
+`retirementDate`, `senderEmail`, and `recipientEmail` are personal data, so
+they are **not** hardcoded in source — `bin/retirement-countdown.ts` reads
+them from CDK context (`app.node.tryGetContext`) and throws before synth if
+any is missing, requiring them to be passed with `-c` on every
+`synth`/`deploy`/`destroy` invocation (or supplied via a gitignored
+`cdk.context.json`). `bedrockModelId` is not personal data and stays
+hardcoded as a sensible default.
+
 There is no external config store (SSM/Secrets Manager) — none of these
 values are secret, only configuration and low-sensitivity PII (personal
-email addresses).
+email addresses), and keeping them out of committed source is sufficient.
 
 ## IAM
 
