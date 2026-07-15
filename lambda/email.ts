@@ -88,3 +88,20 @@ export function stageForDays(n: number): Stage {
   if (n > 0) return STAGES.peak;
   return STAGES.theday;
 }
+
+export function progressPct(
+  startISO: string,
+  retirementISO: string,
+  today: Date
+): number {
+  const start = Date.parse(`${startISO}T00:00:00Z`);
+  const end = Date.parse(`${retirementISO}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0;
+  const now = Date.UTC(
+    today.getUTCFullYear(),
+    today.getUTCMonth(),
+    today.getUTCDate()
+  );
+  const pct = ((now - start) / (end - start)) * 100;
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
