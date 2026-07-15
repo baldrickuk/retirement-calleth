@@ -106,9 +106,9 @@ where possible:
   the one table.
 - `bedrock:InvokeModel` — restricted to the specific model ARN
   (`arn:aws:bedrock:<region>::foundation-model/<bedrockModelId>`).
-- `ses:SendEmail` / `ses:SendRawEmail` — granted on `resource: "*"`, because
-  the CDK stack does not construct scoped SES identity ARNs. This is the one
-  broader-than-strictly-necessary grant in the stack (see
+- `ses:SendEmail` / `ses:SendRawEmail` — restricted to the sender identity
+  ARN (`arn:aws:ses:<region>:<account>:identity/<senderEmail>`), not the
+  destination address (SES has no resource-level ARN for recipients — see
   [threat-model.md](threat-model.md) and
   [well-architected-review.md](well-architected-review.md)).
 - Default CloudWatch Logs permissions are attached automatically by

@@ -64,7 +64,9 @@ export class RetirementCountdownStack extends cdk.Stack {
     countdownFn.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["ses:SendEmail", "ses:SendRawEmail"],
-        resources: ["*"],
+        resources: [
+          `arn:aws:ses:${this.region}:${this.account}:identity/${props.senderEmail}`,
+        ],
       })
     );
 

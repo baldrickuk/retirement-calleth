@@ -12,7 +12,7 @@ multi-tenant or internet-facing service.
 |---|---|---|
 | Verified SES sender identity | Medium | Reputation asset — abuse could get the sending domain/address flagged as spam |
 | Recipient / sender email addresses | Low (PII) | Personal but not sensitive (financial/health) data |
-| Lambda execution role credentials | Medium | Scoped IAM permissions to DynamoDB (one table), Bedrock (one model), SES (`*`, see below) |
+| Lambda execution role credentials | Medium | Scoped IAM permissions to DynamoDB (one table), Bedrock (one model), SES (sender identity ARN) |
 | Joke history (DynamoDB) | Low | No sensitive content; regenerable |
 | Retirement date | Low | Personal but not sensitive |
 | Bedrock/SES usage (cost) | Low | Small per-invocation cost; abuse ceiling is low but non-zero |
@@ -39,7 +39,7 @@ flowchart TB
     EB -->|trusted, in-account| L
     L -->|scoped IAM| DDB
     L -->|scoped IAM| BR
-    L -->|broad IAM: resource *| SES
+    L -->|scoped IAM: sender identity ARN| SES
     SES -->|SMTP/internet| Internet
     CW --> SNS --> Internet
     Human -.->|can invoke/modify| L
@@ -54,28 +54,34 @@ Key boundary crossings:
 3. **Any IAM principal with `lambda:InvokeFunction` in this account →
    Lambda**: the function is invokable by any sufficiently-privileged
    principal in the account, not just the schedule.
-4. **Any IAM principal with the Lambda's assumed role → SES**: because the
-   SES grant is `resources: ["*"]`, anything that can act as this role can
-   send email as the verified sender to *any* address, not just the
-   configured recipient.
+4. **Any IAM principal with the Lambda's assumed role → SES**: the SES
+   grant is scoped to the sender identity ARN, so anything that can act as
+   this role can send email *as that specific verified identity* — but
+   still to any recipient address, since SES has no resource-level ARN for
+   the destination (see T1).
 
 ## Threats by STRIDE category
 
 ### Spoofing
 
 - **T1 — Email sent as verified sender to arbitrary recipients.**
-  `ses:SendEmail`/`ses:SendRawEmail` are granted on `resources: ["*"]`
-  (`lib/retirement-countdown-stack.ts:64-69`). Anything that can assume the
-  Lambda's execution role (a compromised dependency executing inside the
-  function, or an over-privileged human/automation elsewhere in the
-  account with `sts:AssumeRole` on it) can send mail as the verified
-  sender to any address — not limited to `RECIPIENT_EMAIL`. Impact: sender
-  reputation damage, potential phishing-as-a-trusted-sender.
-  **Mitigation**: scope the SES grant to the sender identity ARN
-  (`arn:aws:ses:<region>:<account>:identity/<senderEmail>`); this doesn't
-  restrict the *recipient*, but SES doesn't support recipient-side ARN
-  scoping, so recipient restriction would need an application-level check
-  or a sending authorization policy on the identity itself.
+  `ses:SendEmail`/`ses:SendRawEmail` are now granted on the sender identity
+  ARN (`arn:aws:ses:<region>:<account>:identity/<senderEmail>`) rather than
+  `resources: ["*"]` (`lib/retirement-countdown-stack.ts`). This closes the
+  original gap where a misused role could send as *any* verified identity
+  in the account. It does not restrict the *recipient*: anything that can
+  assume the Lambda's execution role can still send mail as this one
+  sender identity to any address, not just `RECIPIENT_EMAIL`, because SES
+  has no resource-level ARN for the destination address. Residual impact:
+  sender reputation damage, potential phishing-as-a-trusted-sender, but
+  now bounded to this one identity rather than every identity in the
+  account. **Further mitigation (optional)**: an application-level check
+  in `handler.ts` that only ever calls `SendEmailCommand` with the
+  configured `RECIPIENT_EMAIL`, or an SES sending-authorization policy on
+  the identity, would close the remaining recipient-side gap — but note
+  the code already hardcodes `RECIPIENT_EMAIL` as the sole destination, so
+  this only matters if the execution role/credentials are used *outside*
+  the shipped handler code.
 - **T2 — Spoofed EventBridge invocation.** Not credible: EventBridge rules
   invoke Lambda via IAM (`lambda:InvokeFunction` granted specifically to
   the rule), and Lambda validates the invoking principal. No mitigation
@@ -150,13 +156,14 @@ Key boundary crossings:
 
 ### Elevation of Privilege
 
-- **T12 — Execution-role scope is mostly tight, one broad grant.** DynamoDB
-  and Bedrock grants are correctly scoped to specific resources
+- **T12 — Execution-role scope is now tight across all three grants.**
+  DynamoDB and Bedrock grants are scoped to specific resources
   (`grantReadWriteData` on one table; `bedrock:InvokeModel` on one model
-  ARN). The SES grant (`resources: ["*"]`, T1) is the one place a
-  compromised execution context gains capability beyond what the function
-  actually needs (sending to *its configured recipient only* vs. sending
-  to *anyone*). This is the single highest-value fix in this threat model.
+  ARN), and the SES grant is scoped to the sender identity ARN (T1) rather
+  than `resources: ["*"]`. The residual gap — a compromised execution
+  context can still send to any recipient as this one identity, since SES
+  has no destination-side ARN — is noted in T1 as optional further
+  hardening, not an open elevation-of-privilege path across identities.
 - **T13 — No resource-based policy restricting who can invoke the
   Lambda beyond the EventBridge rule.** By default, only principals
   explicitly granted `lambda:InvokeFunction` (the EventBridge rule, plus
@@ -167,7 +174,7 @@ Key boundary crossings:
 
 | ID | Threat | Likelihood | Impact | Priority |
 |---|---|---|---|---|
-| T1/T12 | SES `SendEmail` scoped to `"*"` allows sending to arbitrary recipients if role is misused | Low | Medium (reputation/phishing) | **High — fix first** |
+| T1/T12 | SES send-as scoped to one identity, but still any recipient (residual, post-fix) | Low | Low (bounded to the one sender identity) | Low — optional hardening |
 | T4 | Unaudited dependency supply chain, no CI | Low | Medium | Medium |
 | T9 | Real email addresses in committed source if repo goes public | Depends on repo visibility | Low | Medium (situational) |
 | T7/T8 | Low-sensitivity PII visible via logs/env vars to in-account principals | Low | Low | Low |
@@ -176,13 +183,13 @@ Key boundary crossings:
 
 ## Recommended actions, in order
 
-1. Scope `ses:SendEmail`/`ses:SendRawEmail` to the sender identity ARN
-   instead of `"*"` (closes T1/T12 — see
-   [well-architected-review.md](well-architected-review.md) for the exact
-   change).
+1. ~~Scope `ses:SendEmail`/`ses:SendRawEmail` to the sender identity ARN
+   instead of `"*"`~~ — **done** (closed T1/T12's cross-identity risk; see
+   [well-architected-review.md](well-architected-review.md)).
 2. If/when the repo becomes public, replace real email addresses in
    `bin/retirement-countdown.ts` with placeholders and move real values to
    CDK context or a gitignored override (closes T9).
 3. Optional hardening: reserved concurrency of 1 on the Lambda (T10), CI
    with `npm audit`/Dependabot (T4), explicit CloudWatch log retention
-   (T7).
+   (T7), and an application-level recipient check to close T1's residual
+   any-recipient gap.

@@ -34,14 +34,14 @@ calibrated to that scale rather than treated as production-service gaps.
 ## 2. Security
 
 **Observations**
-- **SES grant is over-broad**: `ses:SendEmail`/`ses:SendRawEmail` are
-  granted on `resources: ["*"]` in
-  `lib/retirement-countdown-stack.ts:64-69`. SES supports resource-level
-  permissions scoped to a verified identity ARN
-  (`arn:aws:ses:<region>:<account>:identity/<sender-email-or-domain>`).
-  As written, if the function's role/credentials were ever misused, they
-  could send mail from the verified sender identity to *any* address, not
-  just the configured recipient.
+- **SES grant is scoped to the sender identity**: `ses:SendEmail`/
+  `ses:SendRawEmail` are granted on the sender's identity ARN
+  (`arn:aws:ses:<region>:<account>:identity/<senderEmail>`) in
+  `lib/retirement-countdown-stack.ts`, rather than `resources: ["*"]`. A
+  misused execution role can still send *from* that identity to any
+  recipient — SES has no resource-level ARN for the destination address —
+  but it can no longer send as an *arbitrary* verified identity in the
+  account, which is the scoping SES actually supports.
 - **Bedrock and DynamoDB grants are correctly least-privilege**: Bedrock is
   scoped to a single model ARN; DynamoDB uses CDK's `grantReadWriteData`,
   scoped to the one table.
@@ -65,13 +65,6 @@ calibrated to that scale rather than treated as production-service gaps.
   at `cdk synth` time).
 
 **Recommendations**
-- Scope the SES grant to the sender's identity ARN instead of `"*"`:
-  ```ts
-  countdownFn.addToRolePolicy(new iam.PolicyStatement({
-    actions: ["ses:SendEmail", "ses:SendRawEmail"],
-    resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${props.senderEmail}`],
-  }));
-  ```
 - Add a `cdk-nag` or similar automated IAM/security lint check to the
   (currently absent) CI pipeline to catch broad grants like this going
   forward.
@@ -167,13 +160,13 @@ calibrated to that scale rather than treated as production-service gaps.
 | Pillar | Status | Top action |
 |---|---|---|
 | Operational Excellence | Adequate for scale | Add log retention + minimal tests |
-| Security | One real gap | Scope `ses:SendEmail` to the sender identity ARN instead of `"*"` |
+| Security | Fixed | SES grant now scoped to the sender identity ARN |
 | Reliability | Adequate for scale | Add DLQ/retry on the EventBridge target |
 | Performance Efficiency | Good | None |
 | Cost Optimization | Good | Optional budget alarm |
 | Sustainability | Good | None |
 
 The architecture is well-suited to its actual requirements — a personal,
-single-recipient, once-a-day notification. The one finding worth acting on
-before treating this as "production-ready" for anything more sensitive is
-the unscoped SES `SendEmail` permission.
+single-recipient, once-a-day notification. The previously unscoped SES
+`SendEmail` permission has been narrowed to the sender identity ARN; the
+remaining items above are optional hardening rather than open gaps.
