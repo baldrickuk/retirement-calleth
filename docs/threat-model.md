@@ -131,12 +131,13 @@ Key boundary crossings:
   variables. Anyone in the account with that read permission can see them
   via console/CLI. Low sensitivity data, default AWS-managed encryption at
   rest already applies — proportionate as-is.
-- **T9 — Real email addresses committed to source control.** If this
-  repository is or becomes public, `bin/retirement-countdown.ts` containing
-  real addresses would expose them. **Mitigation**: keep placeholder
-  values in the tracked file for a public repo; supply real values via
-  CDK context (`-c recipientEmail=...`) or a gitignored local override
-  file if the repo's visibility changes.
+- **T9 — Real email addresses committed to source control.** **Fixed**:
+  `bin/retirement-countdown.ts` no longer hardcodes `retirementDate`,
+  `senderEmail`, or `recipientEmail`. They're required CDK context values
+  (`-c retirementDate=... -c senderEmail=... -c recipientEmail=...`, or a
+  gitignored `cdk.context.json`), and synth fails fast if any is missing —
+  so real addresses can no longer land in git history regardless of the
+  repo's visibility.
 
 ### Denial of Service
 
@@ -176,7 +177,7 @@ Key boundary crossings:
 |---|---|---|---|---|
 | T1/T12 | SES send-as scoped to one identity, but still any recipient (residual, post-fix) | Low | Low (bounded to the one sender identity) | Low — optional hardening |
 | T4 | Unaudited dependency supply chain, no CI | Low | Medium | Medium |
-| T9 | Real email addresses in committed source if repo goes public | Depends on repo visibility | Low | Medium (situational) |
+| T9 | Real email addresses in committed source | — | — | **Fixed** |
 | T7/T8 | Low-sensitivity PII visible via logs/env vars to in-account principals | Low | Low | Low |
 | T10/T11 | Cost abuse or throttling of a once-daily job | Low | Low | Low |
 | T3/T5/T6/T13 | Standard IAM-default-deny behavior already mitigates these | — | — | No action |
@@ -186,9 +187,9 @@ Key boundary crossings:
 1. ~~Scope `ses:SendEmail`/`ses:SendRawEmail` to the sender identity ARN
    instead of `"*"`~~ — **done** (closed T1/T12's cross-identity risk; see
    [well-architected-review.md](well-architected-review.md)).
-2. If/when the repo becomes public, replace real email addresses in
-   `bin/retirement-countdown.ts` with placeholders and move real values to
-   CDK context or a gitignored override (closes T9).
+2. ~~Move real email addresses and the retirement date out of committed
+   source~~ — **done** (`bin/retirement-countdown.ts` now requires them as
+   CDK context values, closing T9).
 3. Optional hardening: reserved concurrency of 1 on the Lambda (T10), CI
    with `npm audit`/Dependabot (T4), explicit CloudWatch log retention
    (T7), and an application-level recipient check to close T1's residual

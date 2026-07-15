@@ -52,28 +52,27 @@ calibrated to that scale rather than treated as production-service gaps.
   encryption (not a customer-managed KMS key). For this data (joke text,
   no PII beyond what's already in env vars) that's a reasonable,
   proportionate choice, not a gap.
-- Configuration (including the recipient's personal email address) is
-  hardcoded in `bin/retirement-countdown.ts`, which is committed to the
-  repo. Email addresses are low-sensitivity PII, but if this repo is or
-  becomes public, real addresses would be exposed. Worth a `.gitignore`d
-  local config or CDK context/parameter for real deployments.
+- `retirementDate`, `senderEmail`, and `recipientEmail` are personal data
+  and are **not** committed to source: `bin/retirement-countdown.ts` reads
+  them via CDK context (`-c` flags, or a gitignored `cdk.context.json`) and
+  fails fast with a clear error if any is missing, so real addresses never
+  land in git history. `bedrockModelId` stays hardcoded since it isn't
+  personal data.
 - No secrets are used (no API keys / passwords) — nothing here needs
   Secrets Manager.
-- No input validation on `RETIREMENT_DATE` at deploy time; a malformed date
-  would cause `daysLeft()` to produce `NaN`/`Invalid Date` and error out
-  loudly at runtime (fails safe, but only on first invocation rather than
-  at `cdk synth` time).
+- No input validation beyond presence-checking on the context values; a
+  malformed `retirementDate` would still cause `daysLeft()` to produce
+  `NaN`/`Invalid Date` and error out loudly at runtime (fails safe, but
+  only on first invocation rather than at `cdk synth` time).
 
 **Recommendations**
 - Add a `cdk-nag` or similar automated IAM/security lint check to the
   (currently absent) CI pipeline to catch broad grants like this going
   forward.
 - Validate `retirementDate` is a well-formed ISO date in the CDK app
-  (`bin/retirement-countdown.ts`) so a typo fails at `cdk synth`/`deploy`
-  time, not at 07:00 UTC the next morning.
-- If the repo is or will be public, move real email addresses out of
-  committed source (e.g., CDK context values passed via `-c`, or a
-  gitignored `config.local.ts`) and keep placeholders in the tracked file.
+  (`bin/retirement-countdown.ts`) — alongside the existing presence check —
+  so a typo fails at `cdk synth`/`deploy` time, not at 07:00 UTC the next
+  morning.
 
 ## 3. Reliability
 
