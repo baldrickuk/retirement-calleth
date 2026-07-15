@@ -105,3 +105,100 @@ export function progressPct(
   const pct = ((now - start) / (end - start)) * 100;
   return Math.max(0, Math.min(100, Math.round(pct)));
 }
+
+export interface RenderInput {
+  days: number;
+  joke: string;
+  stage: Stage;
+  pct: number;
+}
+
+export interface RenderedEmail {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function renderEmail({ days, joke, stage, pct }: RenderInput): RenderedEmail {
+  const unit = days === 1 ? "day" : "days";
+  const heroNumber = days > 0 ? String(days) : "0";
+
+  let subject: string;
+  if (stage.key === "theday") {
+    subject = `${stage.subjectPrefix} TODAY'S THE DAY!`;
+  } else {
+    const core = `${days} ${unit} to go`;
+    subject = stage.allCaps
+      ? `${stage.subjectPrefix} ${core.toUpperCase()}!!!`
+      : `${stage.subjectPrefix} ${core}`;
+  }
+
+  const heading =
+    stage.key === "theday"
+      ? `TODAY'S THE DAY ${stage.emoji}`
+      : `${heroNumber} ${stage.emoji}`;
+  const subheading =
+    stage.key === "theday" ? "Congratulations — you made it." : stage.label;
+
+  const safeJoke = escapeHtml(joke);
+
+  const text = [
+    stage.key === "theday"
+      ? `TODAY'S THE DAY! ${stage.emoji}`
+      : `${days} ${unit} until retirement`,
+    "",
+    `"${joke}"`,
+    "",
+    `${pct}% of the way there`,
+    "",
+    "— your retirement countdown bot",
+  ].join("\n");
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
+        <tr>
+          <td align="center" style="background:${stage.accent};background-image:${stage.gradient};padding:40px 24px;">
+            <div style="font-size:64px;line-height:1;font-weight:800;color:#ffffff;">${heading}</div>
+            <div style="font-size:16px;color:#ffffff;opacity:0.9;margin-top:8px;letter-spacing:1px;text-transform:uppercase;">${subheading}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 28px 8px 28px;">
+            <div style="border-left:4px solid ${stage.accent};background:#f8fafc;border-radius:8px;padding:16px 18px;font-size:18px;line-height:1.5;color:#0f172a;">${safeJoke}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 28px 28px 28px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e2e8f0;border-radius:999px;">
+              <tr><td style="padding:0;">
+                <table role="presentation" width="${pct}%" cellpadding="0" cellspacing="0">
+                  <tr><td style="background:${stage.accent};height:12px;border-radius:999px;font-size:0;line-height:0;">&nbsp;</td></tr>
+                </table>
+              </td></tr>
+            </table>
+            <div style="font-size:13px;color:#64748b;margin-top:8px;text-align:right;">${pct}% of the way there</div>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:0 28px 28px 28px;font-size:12px;color:#94a3b8;">— your retirement countdown bot</td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  return { subject, html, text };
+}
