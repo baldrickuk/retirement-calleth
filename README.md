@@ -1,5 +1,12 @@
 # retirement-calleth
 
+![AWS CDK](https://img.shields.io/badge/AWS%20CDK-2.150.0-orange?logo=amazonaws&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.4-3178C6?logo=typescript&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?logo=node.js&logoColor=white)
+![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-FF9900?logo=awslambda&logoColor=white)
+![Amazon Bedrock](https://img.shields.io/badge/Amazon-Bedrock-232F3E?logo=amazonaws&logoColor=white)
+![Serverless](https://img.shields.io/badge/architecture-serverless-4B32C3)
+
 A serverless AWS application that emails a daily retirement countdown, complete
 with an AI-generated joke that gets progressively more unhinged as the date
 approaches. Built with AWS CDK (TypeScript).
