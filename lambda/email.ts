@@ -1,0 +1,199 @@
+export type StageKey =
+  | "calm"
+  | "cheeky"
+  | "unhinged"
+  | "chaotic"
+  | "peak"
+  | "theday";
+
+export interface Stage {
+  key: StageKey;
+  tone: string;
+  emoji: string;
+  accent: string;
+  gradient: string;
+  subjectPrefix: string;
+  allCaps: boolean;
+}
+
+const STAGES: Record<StageKey, Stage> = {
+  calm: {
+    key: "calm",
+    tone: "dry, understated, barely-amused corporate tone. A single restrained joke at most.",
+    emoji: "🗓️",
+    accent: "#2563eb",
+    gradient: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+    subjectPrefix: "🗓️",
+    allCaps: false,
+  },
+  cheeky: {
+    key: "cheeky",
+    tone: "noticeably cheekier, gentle countdown humor, a bit of a smirk.",
+    emoji: "😏",
+    accent: "#0d9488",
+    gradient: "linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)",
+    subjectPrefix: "😏",
+    allCaps: false,
+  },
+  unhinged: {
+    key: "unhinged",
+    tone: "unhinged office-countdown energy, playful exaggeration, mock-desperate.",
+    emoji: "🤪",
+    accent: "#d97706",
+    gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+    subjectPrefix: "🤪",
+    allCaps: false,
+  },
+  chaotic: {
+    key: "chaotic",
+    tone: "chaotic, escalating absurdity, all-caps and exclamation marks welcome.",
+    emoji: "🔥",
+    accent: "#ea580c",
+    gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+    subjectPrefix: "🔥",
+    allCaps: true,
+  },
+  peak: {
+    key: "peak",
+    tone: "peak celebratory chaos, over-the-top excitement, confetti-emoji energy.",
+    emoji: "🎉",
+    accent: "#db2777",
+    gradient: "linear-gradient(135deg, #ec4899 0%, #db2777 100%)",
+    subjectPrefix: "🎉",
+    allCaps: true,
+  },
+  theday: {
+    key: "theday",
+    tone: "today is the day — triumphant, warm, a little emotional, congratulatory.",
+    emoji: "🥳",
+    accent: "#f59e0b",
+    gradient: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+    subjectPrefix: "🥳",
+    allCaps: true,
+  },
+};
+
+export function stageForDays(n: number): Stage {
+  if (n > 365) return STAGES.calm;
+  if (n > 100) return STAGES.cheeky;
+  if (n > 30) return STAGES.unhinged;
+  if (n > 7) return STAGES.chaotic;
+  if (n > 0) return STAGES.peak;
+  return STAGES.theday;
+}
+
+export function progressPct(
+  startISO: string,
+  retirementISO: string,
+  today: Date
+): number {
+  const start = Date.parse(`${startISO}T00:00:00Z`);
+  const end = Date.parse(`${retirementISO}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0;
+  const now = Date.UTC(
+    today.getUTCFullYear(),
+    today.getUTCMonth(),
+    today.getUTCDate()
+  );
+  const pct = ((now - start) / (end - start)) * 100;
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
+
+export interface RenderInput {
+  days: number;
+  joke: string;
+  stage: Stage;
+  pct: number;
+}
+
+export interface RenderedEmail {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function renderEmail({ days, joke, stage, pct }: RenderInput): RenderedEmail {
+  const unit = days === 1 ? "day" : "days";
+
+  let subject: string;
+  if (stage.key === "theday") {
+    subject = `${stage.subjectPrefix} TODAY'S THE DAY!`;
+  } else {
+    const core = `${days} ${unit} to go`;
+    subject = stage.allCaps
+      ? `${stage.subjectPrefix} ${core.toUpperCase()}!!!`
+      : `${stage.subjectPrefix} ${core}`;
+  }
+
+  const heading =
+    stage.key === "theday"
+      ? `TODAY'S THE DAY ${stage.emoji}`
+      : `${days} ${stage.emoji}`;
+  const subheading =
+    stage.key === "theday" ? "Congratulations — you made it." : `${unit} to go`;
+  // The short stage labels ("day to go") read well in caps; the celebratory
+  // sentence does not, so only the label stages get the uppercase treatment.
+  const subheadingTransform = stage.key === "theday" ? "none" : "uppercase";
+
+  const safeJoke = escapeHtml(joke);
+
+  const text = [
+    stage.key === "theday"
+      ? `TODAY'S THE DAY! ${stage.emoji}`
+      : `${days} ${unit} until retirement`,
+    "",
+    `"${joke}"`,
+    "",
+    `${pct}% of the way there`,
+    "",
+    "— your retirement countdown bot",
+  ].join("\n");
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px;max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,0.12);">
+        <tr>
+          <td align="center" style="background:${stage.accent};background-image:${stage.gradient};padding:40px 24px;">
+            <div style="font-size:64px;line-height:1;font-weight:800;color:#ffffff;">${heading}</div>
+            <div style="font-size:16px;color:#ffffff;opacity:0.9;margin-top:8px;letter-spacing:1px;text-transform:${subheadingTransform};">${subheading}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 28px 8px 28px;">
+            <div style="border-left:4px solid ${stage.accent};background:#f8fafc;border-radius:8px;padding:16px 18px;font-size:18px;line-height:1.5;color:#0f172a;">${safeJoke}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 28px 28px 28px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e2e8f0;border-radius:999px;">
+              <tr><td style="padding:0;">
+                <table role="presentation" width="${pct}%" cellpadding="0" cellspacing="0">
+                  <tr><td style="background:${stage.accent};height:12px;border-radius:999px;font-size:0;line-height:0;">&nbsp;</td></tr>
+                </table>
+              </td></tr>
+            </table>
+            <div style="font-size:13px;color:#64748b;margin-top:8px;text-align:right;">${pct}% of the way there</div>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:0 28px 28px 28px;font-size:12px;color:#94a3b8;">— your retirement countdown bot</td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  return { subject, html, text };
+}

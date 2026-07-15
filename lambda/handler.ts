@@ -2,6 +2,7 @@ import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedroc
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { stageForDays, progressPct, renderEmail } from "./email";
 
 const bedrock = new BedrockRuntimeClient({});
 const ses = new SESClient({});
@@ -12,6 +13,7 @@ const SENDER_EMAIL = process.env.SENDER_EMAIL as string;
 const RECIPIENT_EMAIL = process.env.RECIPIENT_EMAIL as string;
 const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID as string;
 const TABLE_NAME = process.env.TABLE_NAME as string;
+const COUNTDOWN_START_DATE = process.env.COUNTDOWN_START_DATE as string;
 const HISTORY_KEY = "HISTORY";
 const MAX_HISTORY = 10;
 
@@ -21,15 +23,6 @@ function daysLeft(): number {
   const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   const diffMs = target.getTime() - todayUtc;
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-}
-
-function toneForDays(n: number): string {
-  if (n > 365) return "dry, understated, barely-amused corporate tone. A single restrained joke at most.";
-  if (n > 100) return "noticeably cheekier, gentle countdown humor, a bit of a smirk.";
-  if (n > 30) return "unhinged office-countdown energy, playful exaggeration, mock-desperate.";
-  if (n > 7) return "chaotic, escalating absurdity, all-caps and exclamation marks welcome.";
-  if (n > 0) return "peak celebratory chaos, over-the-top excitement, confetti-emoji energy.";
-  return "today is the day — triumphant, warm, a little emotional, congratulatory.";
 }
 
 async function getRecentJokes(): Promise<string[]> {
@@ -53,7 +46,7 @@ async function saveJoke(joke: string, recent: string[]): Promise<void> {
 }
 
 async function generateJoke(days: number, recentJokes: string[]): Promise<string> {
-  const tone = toneForDays(days);
+  const tone = stageForDays(days).tone;
   const avoid = recentJokes.length
     ? `Avoid repeating the style or punchline of these recent messages:\n${recentJokes
         .map((j) => `- ${j}`)
@@ -85,9 +78,10 @@ async function generateJoke(days: number, recentJokes: string[]): Promise<string
   return payload.content?.[0]?.text?.trim() ?? "Countdown joke generator took the day off.";
 }
 
-async function sendEmail(days: number, body: string): Promise<void> {
-  const subject =
-    days > 0 ? `${days} day${days === 1 ? "" : "s"} until retirement` : "🎉 Today's the day!";
+async function sendEmail(days: number, joke: string): Promise<void> {
+  const stage = stageForDays(days);
+  const pct = progressPct(COUNTDOWN_START_DATE, RETIREMENT_DATE, new Date());
+  const { subject, html, text } = renderEmail({ days, joke, stage, pct });
 
   await ses.send(
     new SendEmailCommand({
@@ -95,7 +89,7 @@ async function sendEmail(days: number, body: string): Promise<void> {
       Destination: { ToAddresses: [RECIPIENT_EMAIL] },
       Message: {
         Subject: { Data: subject },
-        Body: { Text: { Data: body } },
+        Body: { Html: { Data: html }, Text: { Data: text } },
       },
     })
   );
