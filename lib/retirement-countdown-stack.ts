@@ -21,6 +21,8 @@ export interface RetirementCountdownStackProps extends cdk.StackProps {
   recipientEmail: string;
   /** Bedrock model id used to generate the daily joke */
   bedrockModelId: string;
+  /** ISO date (YYYY-MM-DD) the countdown started, for the progress bar */
+  countdownStartDate: string;
 }
 
 export class RetirementCountdownStack extends cdk.Stack {
@@ -46,6 +48,7 @@ export class RetirementCountdownStack extends cdk.Stack {
         SENDER_EMAIL: props.senderEmail,
         RECIPIENT_EMAIL: props.recipientEmail,
         BEDROCK_MODEL_ID: props.bedrockModelId,
+        COUNTDOWN_START_DATE: props.countdownStartDate,
         TABLE_NAME: jokeHistoryTable.tableName,
       },
     });
