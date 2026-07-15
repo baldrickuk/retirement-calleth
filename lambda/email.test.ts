@@ -94,4 +94,11 @@ describe("renderEmail", () => {
     const out = renderEmail({ days: 1, joke: "!", stage, pct: 99 });
     expect(out.subject).toBe("🎉 1 DAY TO GO!!!");
   });
+
+  it("uses singular subheading label in the HTML for one day", () => {
+    const stage = stageForDays(1);
+    const out = renderEmail({ days: 1, joke: "!", stage, pct: 99 });
+    expect(out.html).toContain(">day to go<");
+    expect(out.html).not.toContain("days to go");
+  });
 });

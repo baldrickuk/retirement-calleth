@@ -12,7 +12,6 @@ export interface Stage {
   emoji: string;
   accent: string;
   gradient: string;
-  label: string;
   subjectPrefix: string;
   allCaps: boolean;
 }
@@ -24,7 +23,6 @@ const STAGES: Record<StageKey, Stage> = {
     emoji: "🗓️",
     accent: "#2563eb",
     gradient: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-    label: "days to go",
     subjectPrefix: "🗓️",
     allCaps: false,
   },
@@ -34,7 +32,6 @@ const STAGES: Record<StageKey, Stage> = {
     emoji: "😏",
     accent: "#0d9488",
     gradient: "linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)",
-    label: "days to go",
     subjectPrefix: "😏",
     allCaps: false,
   },
@@ -44,7 +41,6 @@ const STAGES: Record<StageKey, Stage> = {
     emoji: "🤪",
     accent: "#d97706",
     gradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-    label: "days to go",
     subjectPrefix: "🤪",
     allCaps: false,
   },
@@ -54,7 +50,6 @@ const STAGES: Record<StageKey, Stage> = {
     emoji: "🔥",
     accent: "#ea580c",
     gradient: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
-    label: "DAYS TO GO",
     subjectPrefix: "🔥",
     allCaps: true,
   },
@@ -64,7 +59,6 @@ const STAGES: Record<StageKey, Stage> = {
     emoji: "🎉",
     accent: "#db2777",
     gradient: "linear-gradient(135deg, #ec4899 0%, #db2777 100%)",
-    label: "DAYS TO GO",
     subjectPrefix: "🎉",
     allCaps: true,
   },
@@ -74,7 +68,6 @@ const STAGES: Record<StageKey, Stage> = {
     emoji: "🥳",
     accent: "#f59e0b",
     gradient: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
-    label: "",
     subjectPrefix: "🥳",
     allCaps: true,
   },
@@ -146,7 +139,7 @@ export function renderEmail({ days, joke, stage, pct }: RenderInput): RenderedEm
       ? `TODAY'S THE DAY ${stage.emoji}`
       : `${heroNumber} ${stage.emoji}`;
   const subheading =
-    stage.key === "theday" ? "Congratulations — you made it." : stage.label;
+    stage.key === "theday" ? "Congratulations — you made it." : `${unit} to go`;
 
   const safeJoke = escapeHtml(joke);
 
