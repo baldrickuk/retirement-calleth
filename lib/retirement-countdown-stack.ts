@@ -23,6 +23,8 @@ export interface RetirementCountdownStackProps extends cdk.StackProps {
   bedrockModelId: string;
   /** ISO date (YYYY-MM-DD) the countdown started, for the progress bar */
   countdownStartDate: string;
+  /** ISO date (YYYY-MM-DD) of any known non-working Friday, to anchor the fortnightly on/off pattern */
+  nonWorkingFridayAnchor: string;
 }
 
 export class RetirementCountdownStack extends cdk.Stack {
@@ -49,6 +51,7 @@ export class RetirementCountdownStack extends cdk.Stack {
         RECIPIENT_EMAIL: props.recipientEmail,
         BEDROCK_MODEL_ID: props.bedrockModelId,
         COUNTDOWN_START_DATE: props.countdownStartDate,
+        NON_WORKING_FRIDAY_ANCHOR: props.nonWorkingFridayAnchor,
         TABLE_NAME: jokeHistoryTable.tableName,
       },
     });

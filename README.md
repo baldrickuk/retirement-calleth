@@ -11,12 +11,17 @@ A serverless AWS application that emails a daily retirement countdown, complete
 with an AI-generated joke that gets progressively more unhinged as the date
 approaches. Built with AWS CDK (TypeScript).
 
-Every morning at 07:00 UTC, a Lambda function calculates the number of days
-left until a configured retirement date, asks Amazon Bedrock (Claude) for a
-short joke matching the mood of that countdown stage, and emails the result
-via Amazon SES. Recent jokes are kept in DynamoDB so the model avoids
-repeating itself, and a CloudWatch alarm emails a separate ops alert if a run
-fails.
+Every morning at 07:00 UTC, a Lambda function calculates the number of
+**working days** left until a configured retirement date, asks Amazon
+Bedrock (Claude) for a short joke matching the mood of that countdown
+stage, and emails the result via Amazon SES. Recent jokes are kept in
+DynamoDB so the model avoids repeating itself, and a CloudWatch alarm
+emails a separate ops alert if a run fails.
+
+"Working days" excludes weekends, England & Wales bank holidays, the
+Christmas Day–New Year's Day closure period, and a fortnightly non-working
+Friday — see [docs/architecture.md](docs/architecture.md#working-day-calculation)
+for the exact rules.
 
 ## Architecture
 
@@ -43,6 +48,8 @@ for an AWS Well-Architected Framework review, and
 bin/retirement-countdown.ts        CDK app entry point + stack configuration
 lib/retirement-countdown-stack.ts  CDK stack: Lambda, EventBridge, DynamoDB, SES IAM, alarms
 lambda/handler.ts                  Lambda handler: countdown, Bedrock joke, SES send, DynamoDB history
+lambda/workingDays.ts              UK bank holidays, Christmas closure, fortnightly Friday, day counting
+lambda/email.ts                    Countdown stage/tone, progress bar, HTML + text email rendering
 ```
 
 ## Before deploying
@@ -63,27 +70,46 @@ lambda/handler.ts                  Lambda handler: countdown, Bedrock joke, SES 
 
 ## Deploy
 
-`retirementDate`, `senderEmail`, and `recipientEmail` are **not**
-hardcoded — they're personal data, so they must be passed as CDK context
-on every `deploy`/`synth`/`destroy` invocation instead of being committed
-to source:
+`retirementDate`, `senderEmail`, `recipientEmail`, and
+`nonWorkingFridayAnchor` are **not** hardcoded — they're personal data, so
+they must be passed as CDK context on every `deploy`/`synth`/`destroy`
+invocation instead of being committed to source. `nonWorkingFridayAnchor`
+is the ISO date of *any* Friday you know you don't work — it anchors the
+fortnightly on/off pattern (see
+[docs/architecture.md](docs/architecture.md#working-day-calculation)):
 
 ```bash
 npm install
 npx cdk bootstrap \
   -c retirementDate=2028-04-01 \
   -c senderEmail=your-verified-sender@example.com \
-  -c recipientEmail=your-recipient@example.com   # first time only, per account/region
+  -c recipientEmail=your-recipient@example.com \
+  -c nonWorkingFridayAnchor=2026-07-31   # first time only, per account/region
 
 npx cdk deploy \
   -c retirementDate=2028-04-01 \
   -c senderEmail=your-verified-sender@example.com \
-  -c recipientEmail=your-recipient@example.com
+  -c recipientEmail=your-recipient@example.com \
+  -c nonWorkingFridayAnchor=2026-07-31
 ```
 
-Omitting any of the three fails fast with a clear error before anything is
+Omitting any of these fails fast with a clear error before anything is
 deployed. To avoid retyping them, put them in `cdk.context.json` (gitignored)
 or export them once as shell variables and reuse `-c retirementDate=$RETIREMENT_DATE ...`.
+
+`countdownStartDate` is optional context (defaults to today) used only for
+the email's progress bar, not the working-day count.
+
+## Run the tests
+
+```bash
+npm test
+```
+
+Covers the working-day calculation (`lambda/workingDays.ts`: UK bank
+holidays, Christmas closure, the fortnightly Friday, day counting) and the
+email rendering (`lambda/email.ts`: stage/tone selection, progress bar,
+HTML/text output).
 
 ## Test it immediately
 

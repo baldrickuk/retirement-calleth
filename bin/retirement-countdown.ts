@@ -28,6 +28,8 @@ new RetirementCountdownStack(app, "RetirementCountdownStack", {
   retirementDate: requireContext("retirementDate"),
   senderEmail: requireContext("senderEmail"),
   recipientEmail: requireContext("recipientEmail"),
+  // Any known non-working Friday — anchors the fortnightly on/off pattern.
+  nonWorkingFridayAnchor: requireContext("nonWorkingFridayAnchor"),
   countdownStartDate,
   // eu. inference-profile ID — required for on-demand invocation of this model in eu-west-2
   bedrockModelId: "eu.anthropic.claude-sonnet-4-6",
