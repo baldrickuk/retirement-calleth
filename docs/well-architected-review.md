@@ -12,8 +12,10 @@ calibrated to that scale rather than treated as production-service gaps.
 - No CI/CD: deploys are manual (`npx cdk deploy`) from a developer machine.
   There's no automated build/lint/test/synth gate before a change reaches
   production.
-- No automated tests (unit tests for `daysLeft()`/`toneForDays()`, or a CDK
-  snapshot/assertions test for the stack).
+- `lambda/workingDays.ts` and `lambda/email.ts` have a Jest unit-test suite
+  (`npm test`), but the CDK stack itself has no snapshot/assertions test,
+  so an accidental IAM or schedule regression in `lib/retirement-countdown-stack.ts`
+  wouldn't be caught automatically.
 - Logging exists (default Lambda → CloudWatch Logs) but log retention is
   unset, so `NodejsFunction`'s default log group keeps logs indefinitely.
 - The single `CountdownFunctionName` CfnOutput is the only operational
@@ -24,9 +26,9 @@ calibrated to that scale rather than treated as production-service gaps.
 **Recommendations**
 - Add a `LogGroup` construct with an explicit `retention` (e.g. one month)
   passed to `NodejsFunction` to avoid unbounded log storage.
-- Add a minimal test suite (`daysLeft`/`toneForDays` are pure functions and
-  cheap to unit test; a CDK `Template`-based snapshot test guards against
-  accidental IAM/schedule regressions).
+- Add a CDK `Template`-based snapshot/assertions test for the stack to
+  guard against accidental IAM/schedule regressions (the Lambda-side logic
+  already has unit test coverage).
 - Consider a simple GitHub Actions workflow that runs `npm ci && npx cdk
   synth` (and tests, once added) on PRs — cheap insurance even without a
   full deploy pipeline.
@@ -52,18 +54,20 @@ calibrated to that scale rather than treated as production-service gaps.
   encryption (not a customer-managed KMS key). For this data (joke text,
   no PII beyond what's already in env vars) that's a reasonable,
   proportionate choice, not a gap.
-- `retirementDate`, `senderEmail`, and `recipientEmail` are personal data
-  and are **not** committed to source: `bin/retirement-countdown.ts` reads
-  them via CDK context (`-c` flags, or a gitignored `cdk.context.json`) and
-  fails fast with a clear error if any is missing, so real addresses never
-  land in git history. `bedrockModelId` stays hardcoded since it isn't
-  personal data.
+- `retirementDate`, `senderEmail`, `recipientEmail`, and
+  `nonWorkingFridayAnchor` are personal/situational data and are **not**
+  committed to source: `bin/retirement-countdown.ts` reads them via CDK
+  context (`-c` flags, or a gitignored `cdk.context.json`) and fails fast
+  with a clear error if any is missing, so real addresses (or a work
+  schedule) never land in git history. `bedrockModelId` stays hardcoded
+  since it isn't personal data.
 - No secrets are used (no API keys / passwords) — nothing here needs
   Secrets Manager.
 - No input validation beyond presence-checking on the context values; a
-  malformed `retirementDate` would still cause `daysLeft()` to produce
-  `NaN`/`Invalid Date` and error out loudly at runtime (fails safe, but
-  only on first invocation rather than at `cdk synth` time).
+  malformed `retirementDate` or `nonWorkingFridayAnchor` would still cause
+  `workingDaysUntilRetirement()` to produce `NaN`/`Invalid Date` and error
+  out loudly at runtime (fails safe, but only on first invocation rather
+  than at `cdk synth` time).
 
 **Recommendations**
 - Add a `cdk-nag` or similar automated IAM/security lint check to the

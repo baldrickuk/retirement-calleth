@@ -32,7 +32,7 @@ sequenceDiagram
     participant U as Recipient
 
     EB->>L: scheduled invoke (07:00 UTC)
-    L->>L: compute daysLeft() from RETIREMENT_DATE
+    L->>L: compute working days left (see "Working-day calculation")
     L->>DDB: GetItem(date=HISTORY)
     DDB-->>L: recent jokes[]
     L->>BR: InvokeModel(system+user prompt, tone by days remaining)
@@ -56,6 +56,40 @@ sequenceDiagram
     CW->>SNS: ALARM state → publish
     SNS->>U: ops alert email
 ```
+
+## Working-day calculation
+
+`lambda/workingDays.ts` computes the number of working days remaining
+(inclusive of `RETIREMENT_DATE`, exclusive of today), rather than a plain
+calendar-day count. A day counts as non-working if any of the following
+apply:
+
+1. **Weekend** — Saturday or Sunday.
+2. **England & Wales bank holiday** — New Year's Day, Good Friday, Easter
+   Monday, the early-May, Spring, and Summer bank holidays, and Christmas
+   Day/Boxing Day. Fixed dates are shifted off a weekend onto the next
+   working day using the same substitution rule gov.uk publishes (Christmas
+   Day and Boxing Day are shifted as a pair, so they never collide on the
+   same substitute day); Easter-based holidays are computed from Easter
+   Sunday via the Anonymous Gregorian (Meeus/Jones/Butcher) algorithm, so
+   no yearly holiday list needs to be maintained. This does **not** cover
+   Scotland/Northern Ireland-specific holidays (e.g. St Andrew's Day, an
+   early-rather-than-late-August Summer bank holiday).
+3. **Christmas closure** — every day from 25 December through 1 January
+   inclusive, regardless of weekday or bank-holiday status (an office
+   closure on top of the statutory holidays, e.g. 29–31 December).
+4. **Fortnightly non-working Friday** — every other Friday is a
+   non-working day, anchored to `NON_WORKING_FRIDAY_ANCHOR` (any one known
+   non-working Friday, passed in as `nonWorkingFridayAnchor` context —
+   see [Configuration](#configuration)); the pattern alternates every 7
+   days from that anchor in both directions.
+
+The bank-holiday and Easter calculations are pure, dependency-free
+functions (no external calendar API), verified against the published
+gov.uk bank holiday lists for 2026–2028 in `lambda/workingDays.test.ts`.
+One-off bank holidays outside the normal rule set (e.g. a state funeral or
+coronation) aren't and can't be predicted algorithmically — they'd need a
+manual override if one is ever announced during the countdown.
 
 ## Compute and packaging
 
@@ -91,14 +125,17 @@ Stack props (`RetirementCountdownStackProps`) are resolved in
 plain (unencrypted-beyond-default) environment variables:
 
 - `RETIREMENT_DATE`, `SENDER_EMAIL`, `RECIPIENT_EMAIL`, `BEDROCK_MODEL_ID`,
-  `TABLE_NAME`.
+  `COUNTDOWN_START_DATE`, `NON_WORKING_FRIDAY_ANCHOR`, `TABLE_NAME`.
 
-`retirementDate`, `senderEmail`, and `recipientEmail` are personal data, so
-they are **not** hardcoded in source — `bin/retirement-countdown.ts` reads
-them from CDK context (`app.node.tryGetContext`) and throws before synth if
-any is missing, requiring them to be passed with `-c` on every
-`synth`/`deploy`/`destroy` invocation (or supplied via a gitignored
-`cdk.context.json`). `bedrockModelId` is not personal data and stays
+`retirementDate`, `senderEmail`, `recipientEmail`, and
+`nonWorkingFridayAnchor` are personal data, so they are **not** hardcoded
+in source — `bin/retirement-countdown.ts` reads them from CDK context
+(`app.node.tryGetContext`) and throws before synth if any is missing,
+requiring them to be passed with `-c` on every `synth`/`deploy`/`destroy`
+invocation (or supplied via a gitignored `cdk.context.json`).
+`countdownStartDate` is also context-supplied but defaults to today's date
+if omitted, since it only affects the email's cosmetic progress bar, not
+the working-day count. `bedrockModelId` is not personal data and stays
 hardcoded as a sensible default.
 
 There is no external config store (SSM/Secrets Manager) — none of these
@@ -112,13 +149,18 @@ where possible:
 
 - `jokeHistoryTable.grantReadWriteData(countdownFn)` — read/write limited to
   the one table.
-- `bedrock:InvokeModel` — restricted to the specific model ARN
-  (`arn:aws:bedrock:<region>::foundation-model/<bedrockModelId>`).
-- `ses:SendEmail` / `ses:SendRawEmail` — restricted to the sender identity
-  ARN (`arn:aws:ses:<region>:<account>:identity/<senderEmail>`), not the
-  destination address (SES has no resource-level ARN for recipients — see
+- `bedrock:InvokeModel` — restricted to the specific model. For a
+  cross-region inference profile id (`eu.`/`us.`/`apac.`/`global.` prefix),
+  the grant covers both the inference-profile ARN and the underlying
+  foundation-model id across all regions the profile can route to, since
+  invoking through a profile requires both.
+- `ses:SendEmail` / `ses:SendRawEmail` — restricted to the sender and
+  recipient identity ARNs (`arn:aws:ses:<region>:<account>:identity/<email>`)
+  rather than `"*"`. Both identities are granted because, while the SES
+  account is in the sandbox, SES authorizes `SendEmail` against the
+  recipient identity as well as the sender — see
   [threat-model.md](threat-model.md) and
-  [well-architected-review.md](well-architected-review.md)).
+  [well-architected-review.md](well-architected-review.md).
 - Default CloudWatch Logs permissions are attached automatically by
   `NodejsFunction` for the function's own log group.
 
@@ -135,5 +177,7 @@ where possible:
 ## Deployment model
 
 Single CDK stack, deployed manually via `npx cdk deploy` from a developer
-workstation using local AWS credentials. There is no CI/CD pipeline,
-staging environment, or automated test suite in this repository.
+workstation using local AWS credentials. There is no CI/CD pipeline or
+staging environment; `lambda/workingDays.ts` and `lambda/email.ts` have a
+Jest unit-test suite (`npm test`), but the CDK stack itself has no
+snapshot/assertions tests.

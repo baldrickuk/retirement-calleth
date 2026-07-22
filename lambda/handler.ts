@@ -3,6 +3,7 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { stageForDays, progressPct, renderEmail } from "./email";
+import { workingDaysUntilRetirement } from "./workingDays";
 
 const bedrock = new BedrockRuntimeClient({});
 const ses = new SESClient({});
@@ -14,15 +15,12 @@ const RECIPIENT_EMAIL = process.env.RECIPIENT_EMAIL as string;
 const BEDROCK_MODEL_ID = process.env.BEDROCK_MODEL_ID as string;
 const TABLE_NAME = process.env.TABLE_NAME as string;
 const COUNTDOWN_START_DATE = process.env.COUNTDOWN_START_DATE as string;
+const NON_WORKING_FRIDAY_ANCHOR = process.env.NON_WORKING_FRIDAY_ANCHOR as string;
 const HISTORY_KEY = "HISTORY";
 const MAX_HISTORY = 10;
 
 function daysLeft(): number {
-  const today = new Date();
-  const target = new Date(`${RETIREMENT_DATE}T00:00:00Z`);
-  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  const diffMs = target.getTime() - todayUtc;
-  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  return workingDaysUntilRetirement(RETIREMENT_DATE, NON_WORKING_FRIDAY_ANCHOR);
 }
 
 async function getRecentJokes(): Promise<string[]> {
